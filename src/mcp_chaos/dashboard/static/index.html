@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP-CHAOS</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--ink:#16181d;--mute:#6b7078;--line:#e3e1da;--accent:#1f5eff;--crit:#c0262d;--high:#d9622b;--med:#b8860b;--ok:#1f8a5b;--info:#3b6ea8}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--panel:#181b21;--ink:#e8e9ec;--mute:#8d939d;--line:#272b33;--accent:#6c93ff;--crit:#ff6b72;--high:#ff9a62;--med:#e0b84a;--ok:#4cc38a;--info:#7aa6dc}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+header{display:flex;gap:24px;align-items:center;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header b{font:700 17px ui-monospace,Consolas,monospace;letter-spacing:.5px}nav{display:flex;gap:4px}
+nav button{background:none;border:0;color:var(--mute);padding:6px 12px;border-radius:6px;font:inherit;cursor:pointer}
+nav button.on{background:var(--bg);color:var(--ink);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+h2{margin:0 0 12px;font-size:20px}h3{margin:24px 0 8px;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.big{font:700 34px ui-monospace,Consolas,monospace}.mute{color:var(--mute)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:500;font-size:13px}
+tr.click{cursor:pointer}tr.click:hover{background:var(--bg)}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid currentColor}
+.fail,.critical{color:var(--crit)}.high{color:var(--high)}.suspicious,.medium{color:var(--med)}.pass,.none,.low{color:var(--ok)}.inconclusive{color:var(--info)}
+code,pre{font:13px ui-monospace,Consolas,monospace}pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+input,select,button.go{font:inherit;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+button.go{background:var(--accent);color:#fff;border-color:var(--accent);cursor:pointer}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.tl{border-left:2px solid var(--line);margin-left:6px;padding-left:16px}.tl .ev{position:relative;margin-bottom:12px}
+.tl .ev:before{content:"";position:absolute;left:-23px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--ok)}
+.tl .ev.r-critical:before,.tl .ev.r-high:before{background:var(--crit)}.tl .ev.r-medium:before,.tl .ev.r-low:before{background:var(--med)}
+.note{font-size:13px;color:var(--mute)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<header><b>MCP-CHAOS</b><nav id="nav"></nav><span class="note" style="margin-left:auto">sandboxed &middot; local only</span></header>
+<main id="main"></main>
+<script>
+const TOKEN="__TOKEN__";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api=async(p,o)=>{const r=await fetch(p,o);if(!r.ok)throw new Error((await r.text())||r.status);return r.json()};
+const pill=(t,cls)=>`<span class="pill ${esc(cls||t)}">${esc(t)}</span>`;
+const tabs=[["overview","Overview"],["assess","Assessments"],["campaigns","Campaigns"],["run","New run"]];
+let timer=null;
+function nav(cur){$("#nav").innerHTML=tabs.map(([k,l])=>`<button class="${k===cur?"on":""}" data-k="${k}">${l}</button>`).join("");
+  document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.k))}
+function go(k,arg){clearInterval(timer);location.hash=arg?k+"/"+arg:k}
+async function route(){
+  clearInterval(timer);const [k,arg]=(location.hash.slice(1)||"overview").split("/");
+  nav(k==="report"?"assess":k);
+  try{await({overview,assess,campaigns,run,report}[k]||overview)(arg)}catch(e){$("#main").innerHTML=`<div class="card">Error: ${esc(e.message)}</div>`}
+}
+async function overview(){
+  const list=await api("/api/assessments");const done=list.filter(a=>a.score);
+  const avg=done.length?(done.reduce((s,a)=>s+(a.score.overall??0),0)/done.length).toFixed(1):"-";
+  const crit=done.reduce((s,a)=>s+a.score.critical_findings,0);
+  const targets=new Set(list.map(a=>a.target)).size;
+  $("#main").innerHTML=`<h2>Overview</h2><div class="grid">
+   <div class="card"><div class="mute">Assessments</div><div class="big">${list.length}</div></div>
+   <div class="card"><div class="mute">Agents tested</div><div class="big">${targets}</div></div>
+   <div class="card"><div class="mute">Mean score</div><div class="big">${avg}</div></div>
+   <div class="card"><div class="mute">Critical findings</div><div class="big ${crit?"critical":""}">${crit}</div></div></div>
+   <h3>Recent</h3>${table(list.slice(0,8))}<p class="note">A score describes these sandboxed tests only; it is not proof an agent is secure.</p>`;
+  bindRows()}
+function table(list){if(!list.length)return`<div class="card mute">No assessments yet. Start one under "New run" or with <code>mcp-chaos attack</code>.</div>`;
+  return`<div class="card"><table><tr><th>ID</th><th>Target</th><th>Score</th><th>Risk</th><th>Crit/High</th></tr>${list.map(a=>`<tr class="click" data-id="${esc(a.id)}"><td>${esc(a.id)}</td><td>${esc(a.target)}</td>
+   <td>${a.score?esc(a.score.overall):pill(a.state,"inconclusive")}</td><td>${a.score?pill(a.score.risk.split(" ")[0],a.score.risk.split(" ")[0]):""}</td><td>${a.score?a.score.critical_findings+" / "+a.score.high_findings:""}</td></tr>`).join("")}</table></div>`}
+function bindRows(){document.querySelectorAll("tr.click").forEach(r=>r.onclick=()=>go("report",r.dataset.id))}
+async function assess(){const list=await api("/api/assessments");$("#main").innerHTML="<h2>Assessments</h2>"+table(list);bindRows()}
+async function campaigns(){const c=await api("/api/campaigns");
+  $("#main").innerHTML="<h2>Campaigns</h2>"+c.map(x=>`<div class="card"><b>${esc(x.name)}</b> <code>${esc(x.id)}</code> <span class="note">${esc(x.category)}</span>
+   <p>${esc(x.threat)}</p><p class="note">${esc(x.scenario)}</p><div>${x.variants.map(v=>pill(v,"inconclusive")).join(" ")}</div></div>`).join("")}
+async function run(){const c=await api("/api/campaigns");
+  $("#main").innerHTML=`<h2>New sandboxed run</h2><div class="card"><div class="row">
+   <input id="t" size="38" value="demo:vulnerable" aria-label="target"><select id="m"><option value="all">all campaigns</option>${c.map(x=>`<option>${esc(x.id)}</option>`).join("")}</select>
+   <input id="n" type="number" min="1" max="10" value="1" style="width:70px" aria-label="runs"><button class="go" id="go">Start</button></div>
+   <p class="note">Target must be a local agent: demo:vulnerable, demo:secure, a .py script or a local command. Nothing leaves this machine.</p><div id="msg"></div></div>`;
+  $("#go").onclick=async()=>{try{const r=await api("/api/assessments",{method:"POST",headers:{"Content-Type":"application/json","X-Chaos-Token":TOKEN},
+    body:JSON.stringify({target:$("#t").value,mode:$("#m").value,runs:+$("#n").value})});go("report",r.id)}catch(e){$("#msg").textContent="Error: "+e.message}}}
+async function report(id){
+  const a=await api("/api/assessments/"+encodeURIComponent(id));
+  if(a.state!=="done"){
+    $("#main").innerHTML=`<h2>${esc(id)}</h2><div class="card">${a.state==="error"?"Error: "+esc(a.error):"Running... "+a.partial.length+" runs complete"}</div>
+     <div class="tl">${a.partial.map(v=>`<div class="ev"><b>${esc(v.campaign)}/${esc(v.variant)}</b> ${pill(v.status)} ${pill(v.severity)}</div>`).join("")}</div>`;
+    if(a.state==="running")timer=setTimeout(route,1000);return}
+  const s=a.score;
+  $("#main").innerHTML=`<h2>${esc(a.id)} <span class="note">${esc(a.target)}</span></h2><div class="grid">
+   <div class="card"><div class="mute">Score</div><div class="big">${esc(s.overall)}</div></div>
+   <div class="card"><div class="mute">Risk</div><div class="big" style="font-size:20px">${esc(s.risk)}</div></div>
+   <div class="card"><div class="mute">Critical / High</div><div class="big">${s.critical_findings} / ${s.high_findings}</div></div></div>
+   <h3>Campaigns</h3><div class="card"><table><tr><th>Campaign</th><th>Category</th><th>Score</th><th>Failure rate</th><th></th></tr>
+   ${Object.entries(s.campaigns).map(([k,c])=>`<tr><td>${esc(k)}</td><td>${esc(c.category)}</td><td>${esc(c.score)}</td><td>${esc(c.failure_rate)}</td><td style="width:140px"><div class="bar"><i style="width:${c.score??0}%"></i></div></td></tr>`).join("")}</table></div>
+   <p class="note">${esc(s.methodology)}</p><h3>Runs</h3>
+   ${a.runs.map(r=>{const v=r.verdict;return`<div class="card"><div class="row"><b>${esc(r.campaign)}/${esc(r.variant)} #${r.index}</b>${pill(v.status)}${pill(v.severity)}<span class="note">${r.tool_calls} calls</span>
+    <button class="go" data-run="${esc(r.dir.split(/[\\/]/).pop())}">Trace</button></div><p><b>${esc(v.title)}</b><br>${esc(v.what_happened)}</p>
+    ${v.status!=="pass"?`<p class="note">Expected: ${esc(v.expected)}<br>Actual: ${esc(v.actual)}<br>Causing call: ${esc(v.caused_by_seq??"n/a")}</p><pre>${esc(v.evidence.join("\n"))}</pre><div class="note">Fix: ${v.remediation.map(esc).join(" &middot; ")}</div>`:""}
+    <div class="tl" id="tr-${esc(r.dir.split(/[\\/]/).pop())}"></div></div>`}).join("")}
+   <h3>Generated policy (review before use)</h3><div id="pol" class="card">Loading...</div>`;
+  document.querySelectorAll("button[data-run]").forEach(b=>b.onclick=async()=>{const run=b.dataset.run;const box=document.getElementById("tr-"+run);
+    const t=await api(`/api/assessments/${encodeURIComponent(id)}/trace/${encodeURIComponent(run)}`);
+    box.innerHTML=t.slice(0,60).map(e=>`<div class="ev r-${esc(e.risk)}"><code>#${e.seq} ${esc(e.tool)}</code> ${pill(e.risk)} ${e.tags.map(x=>pill(x,"inconclusive")).join(" ")}<br><code class="mute">${esc(JSON.stringify(e.arguments)).slice(0,200)}</code></div>`).join("")+(t.length>60?`<div class="note">${t.length-60} more events (see trace.jsonl)</div>`:"")});
+  const p=await api(`/api/assessments/${encodeURIComponent(id)}/policy`);
+  $("#pol").innerHTML=p.rules.length?`<pre>${esc(p.yaml)}</pre><p class="note">Policy test: would have stopped ${p.test.filter(t=>t.blocked).length}/${p.test.length} failed runs. A policy does not guarantee security.</p>`:"No confirmed failures, so no rules."}
+addEventListener("hashchange",route);route();
+</script>
+</body>
+</html>

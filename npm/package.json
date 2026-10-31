@@ -1,0 +1,15 @@
+{
+  "name": "mcp-chaos",
+  "version": "0.1.0",
+  "description": "npx launcher for MCP-CHAOS, the sandboxed security testing tool for tool-connected (MCP) AI agents. Requires Python >= 3.10 (the real tool is the PyPI package mcp-chaos).",
+  "bin": { "mcp-chaos": "bin/mcp-chaos.js" },
+  "files": ["bin/", "README.md", "LICENSE"],
+  "license": "Apache-2.0",
+  "author": "Dhruv Patel <dhruvpatel97730@gmail.com>",
+  "homepage": "https://github.com/dhruvpatel848/mcp-chaos",
+  "repository": { "type": "git", "url": "git+https://github.com/dhruvpatel848/mcp-chaos.git" },
+  "bugs": { "url": "https://github.com/dhruvpatel848/mcp-chaos/issues" },
+  "engines": { "node": ">=18" },
+  "keywords": ["mcp", "ai-agents", "security", "red-team", "prompt-injection", "llm"],
+  "scripts": { "test": "node --test test/launcher.test.js" }
+}

@@ -1,0 +1,9 @@
+# Runs the dashboard in a container. Agents under test still run via the CLI (see docs/installation.md).
+# Experimental: not tested in this repository's CI.
+services:
+  dashboard:
+    build: .
+    image: mcp-chaos:local
+    command: ["sh", "-c", "pip install --no-cache-dir fastapi uvicorn && mcp-chaos dashboard --runs-dir /data --port 8765"]
+    ports: ["127.0.0.1:8765:8765"]
+    volumes: ["./runs:/data"]

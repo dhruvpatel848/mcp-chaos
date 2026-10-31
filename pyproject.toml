@@ -52,3 +52,7 @@ packages = ["src/mcp_chaos"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501", "E402"]

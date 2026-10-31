@@ -10,9 +10,13 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import secrets
 import time
 from pathlib import Path
+
+
+_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{16}")
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -32,36 +36,55 @@ class FileApprover:
 
     async def request(self, tool: str, args: dict, rule_id: str, reason: str) -> bool:
         digest = hashlib.sha256((tool + json.dumps(args, sort_keys=True, default=str)).encode()).hexdigest()
-        rid = f"{digest[:8]}-{secrets.token_hex(3)}"
+        rid = f"{digest[:8]}-{secrets.token_hex(8)}"  # unguessable: 64 random bits
         _atomic_write(self.pending / f"{rid}.json", json.dumps(
             {"id": rid, "tool": tool, "arguments": args, "rule": rule_id, "reason": reason,
-             "requested_at": time.time(), "bound_to": digest}))
+             "requested_at": time.time(), "expires_at": time.time() + self.timeout, "bound_to": digest}))
         decision = self.decided / f"{rid}.json"
         deadline = time.monotonic() + self.timeout
         try:
             while time.monotonic() < deadline:
                 if decision.exists():
-                    d = json.loads(decision.read_text(encoding="utf-8"))
+                    try:
+                        d = json.loads(decision.read_text(encoding="utf-8"))
+                    except (ValueError, OSError):
+                        d = {}  # unreadable or tampered decision: treated as a denial
                     decision.unlink(missing_ok=True)  # single use
-                    return d.get("decision") == "approve" and d.get("bound_to") == digest
+                    return isinstance(d, dict) and d.get("decision") == "approve" and d.get("bound_to") == digest
                 await asyncio.sleep(self.poll)
             return False
         finally:
             (self.pending / f"{rid}.json").unlink(missing_ok=True)
 
 
+def _load_live(p: Path) -> dict | None:
+    """A pending request that is readable and unexpired; expired or corrupt files are removed."""
+    try:
+        req = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(req, dict) and float(req["expires_at"]) > time.time() and "bound_to" in req:
+            return req
+    except (ValueError, KeyError, OSError, TypeError):
+        pass
+    p.unlink(missing_ok=True)
+    return None
+
+
 def list_pending(root: Path) -> list[dict]:
     d = Path(root) / "pending"
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))] if d.is_dir() else []
+    if not d.is_dir():
+        return []
+    return [r for r in (_load_live(p) for p in sorted(d.glob("*.json"))) if r is not None]
 
 
 def decide(root: Path, rid: str, decision: str) -> bool:
-    if Path(rid).name != rid:
-        raise ValueError("bad id")
+    if not _ID.fullmatch(rid):
+        raise ValueError("bad approval id")
     p = Path(root) / "pending" / f"{rid}.json"
     if not p.exists():
         return False
-    req = json.loads(p.read_text(encoding="utf-8"))
+    req = _load_live(p)  # refuses (and removes) expired or corrupt requests
+    if req is None:
+        return False
     (Path(root) / "decided").mkdir(parents=True, exist_ok=True)
     _atomic_write(Path(root) / "decided" / f"{rid}.json", json.dumps({"decision": decision, "bound_to": req["bound_to"]}))
     return True

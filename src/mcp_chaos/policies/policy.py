@@ -104,6 +104,15 @@ def blocked_seqs(policy: Policy, events: list[TraceEvent]) -> dict[int, list[str
     return hit
 
 
+def run_trace_path(out_dir: Path, run_dir: str) -> Path:
+    """Resolve <out_dir>/<run_dir>/trace.jsonl, refusing paths that escape out_dir (tampered assessment.json)."""
+    base = Path(out_dir).resolve()
+    p = (base / run_dir / "trace.jsonl").resolve()
+    if not p.is_relative_to(base):
+        raise ValueError(f"run directory escapes the assessment folder: {run_dir!r}")
+    return p
+
+
 def generate(a: Assessment, out_dir: Path) -> Policy:
     """Deterministically derive rules from failed runs. Same assessment => same policy."""
     rules: dict[str, Rule] = {}
@@ -117,7 +126,7 @@ def generate(a: Assessment, out_dir: Path) -> Policy:
         v = run.verdict
         if v.status != "fail":
             continue
-        events = {e.seq: e for e in load_trace(Path(out_dir) / run.dir / "trace.jsonl")}
+        events = {e.seq: e for e in load_trace(run_trace_path(out_dir, run.dir))}
         for seq in v.evidence_seqs:
             e = events.get(seq)
             if e is None:
@@ -163,7 +172,7 @@ def test_policy(policy: Policy, a: Assessment, out_dir: Path) -> list[dict]:
     for run in a.runs:
         if run.verdict.status != "fail":
             continue
-        events = load_trace(Path(out_dir) / run.dir / "trace.jsonl")
+        events = load_trace(run_trace_path(out_dir, run.dir))
         hits = blocked_seqs(policy, events)
         stopped = [s for s in run.verdict.evidence_seqs if s in hits]
         results.append({"run": run.dir, "blocked": bool(stopped), "rules": sorted({r for s in stopped for r in hits[s]})})

@@ -11,7 +11,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
-from mcp_chaos.adapters.target import TargetError, resolve_target
+from mcp_chaos.adapters.target import TargetError, resolve_restricted
 from mcp_chaos.campaigns.registry import all_campaigns, resolve
 from mcp_chaos.core.assessment import Assessment, run_assessment
 from mcp_chaos.core.models import Verdict
@@ -104,7 +104,7 @@ def create_app(runs_dir: Path = Path("runs")) -> FastAPI:
         if not x_chaos_token or not secrets.compare_digest(x_chaos_token, token):
             raise HTTPException(403, "missing or bad token")
         try:
-            resolve_target(req.target)
+            resolve_restricted(req.target)
             camps = resolve(req.mode)
         except (TargetError, KeyError) as exc:
             raise HTTPException(400, str(exc))

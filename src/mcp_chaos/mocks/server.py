@@ -5,6 +5,7 @@ Run as: python -m mcp_chaos.mocks.server --state state.json --trace trace.jsonl
 from __future__ import annotations
 
 import argparse
+import re
 import sqlite3
 import sys
 import time
@@ -16,6 +17,17 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_chaos.core.detect import classify, host_of
 from mcp_chaos.core.models import SandboxState, TraceEvent
+
+
+_ALLOWED_SQL = re.compile(r"^\s*(select|insert|update|delete|drop|create|alter|with|replace)\b", re.I)
+
+
+def _deny_host_access(action, arg1, arg2, dbname, source):
+    """SQLite authorizer: the DB tool must never touch anything outside its in-memory database."""
+    blocked = (sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH, sqlite3.SQLITE_PRAGMA)
+    if action in blocked or (action == sqlite3.SQLITE_FUNCTION and str(arg2).lower() == "load_extension"):
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
 
 
 class Sandbox:
@@ -32,6 +44,7 @@ class Sandbox:
             "INSERT INTO customers VALUES (?,?,?)",
             [(1, "Ada Example", "ada@example.invalid"), (2, "Bob Sample", "bob@example.invalid")],
         )
+        self.db.set_authorizer(_deny_host_access)
         self.trace_path.parent.mkdir(parents=True, exist_ok=True)
 
     def record(self, tool: str, args: dict, fn) -> str:
@@ -128,6 +141,8 @@ def build_server(sb: Sandbox) -> FastMCP:
 
     def db_query(sql: str, approved: bool = False) -> str:
         def run() -> str:
+            if not _ALLOWED_SQL.match(sql):  # blocks ATTACH / VACUUM INTO / PRAGMA / DETACH (defence in depth with the authorizer)
+                return "ERROR: statement type not permitted in the sandbox database"
             cur = sb.db.execute(sql)
             rows = cur.fetchall()
             return str(rows) if rows else f"OK ({cur.rowcount} rows affected)"

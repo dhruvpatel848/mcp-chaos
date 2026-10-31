@@ -45,6 +45,28 @@ def resolve_target(target: str) -> list[str]:
     return argv
 
 
+def resolve_restricted(target: str, roots: "list[str] | None" = None) -> list[str]:
+    """Targets that a remote caller (MCP tool, dashboard) may start: demo:* or `[python] <script.py> [args]` where the
+    script lives under an allowed directory (MCP_CHAOS_ALLOWED_TARGET_DIRS, default: the current directory).
+    Arbitrary commands, `python -c`, and scripts elsewhere on disk are refused."""
+    if target.startswith("demo:"):
+        return resolve_target(target)
+    if roots is None:
+        env = os.environ.get("MCP_CHAOS_ALLOWED_TARGET_DIRS")
+        roots = env.split(os.pathsep) if env else [os.getcwd()]
+    allowed = [Path(r).resolve() for r in roots]
+    parts = shlex.split(target, posix=os.name != "nt")
+    parts = [a[1:-1] if len(a) > 1 and a[0] == a[-1] and a[0] in "\"'" else a for a in parts]
+    if parts and Path(parts[0]).stem.lower() in ("python", "python3"):
+        parts = parts[1:]
+    if not parts or not parts[0].endswith(".py") or not Path(parts[0]).is_file():
+        raise TargetError("remote callers may only start demo:* targets or an existing .py script under an allowed directory")
+    script = Path(parts[0]).resolve()
+    if not any(script.is_relative_to(r) for r in allowed):
+        raise TargetError("script is outside the allowed directories (set MCP_CHAOS_ALLOWED_TARGET_DIRS)")
+    return resolve_target(" ".join([f'"{sys.executable}"', f'"{script}"', *parts[1:]]))
+
+
 def _clean_env(extra: dict[str, str], pass_env: tuple = ()) -> dict[str, str]:
     """Scrubbed environment: real secrets in the host environment are never passed to the agent."""
     keep = ["PATH", "SYSTEMROOT", "SYSTEMDRIVE", "TEMP", "TMP", "HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "PATHEXT", "COMSPEC"]
@@ -84,6 +106,19 @@ def run_agent(argv: list[str], server_cmd: list[str], task: str, timeout: int, c
 
 
 DOCKER_IMAGE = "mcp-chaos:local"
+
+# Secrets never go on the `docker run` command line or into -e: those are readable through `docker inspect` and
+# `ps`. They are written to the container's stdin, read by this loader, then stdin is closed before the agent starts.
+_SECRET_LOADER = (
+    "import json,os,runpy,sys\n"
+    "os.environ.update(json.loads(sys.stdin.readline() or '{}'))\n"
+    "sys.stdin.close(); sys.stdin = open(os.devnull)\n"
+    "a = sys.argv[1:]\n"
+    "if a[0] == '-m':\n"
+    "    sys.argv = [a[1]] + a[2:]; runpy.run_module(a[1], run_name='__main__', alter_sys=True)\n"
+    "else:\n"
+    "    sys.argv = a; runpy.run_path(a[0], run_name='__main__')\n"
+)
 
 
 def docker_available() -> bool:
@@ -127,9 +162,7 @@ def run_agent_docker(target: str, state_path: Path, trace_path: Path, task: str,
     name = f"mcp-chaos-{uid}"
     net_args = ["--network", "none"]
     env_args = ["-e", f"MCP_CHAOS_SERVER_CMD={json.dumps(server)}", "-e", f"MCP_CHAOS_TASK={task}", "-e", "PYTHONIOENCODING=utf-8"]
-    for k in pass_env:
-        if k in os.environ:
-            env_args += ["-e", f"{k}={os.environ[k]}"]
+    secrets = {k: os.environ[k] for k in pass_env if k in os.environ}
     net = proxy = None
     try:
         if hosts:
@@ -143,14 +176,16 @@ def run_agent_docker(target: str, state_path: Path, trace_path: Path, task: str,
             net_args = ["--network", net]
             px = f"http://{proxy}:3128"
             env_args += ["-e", f"HTTPS_PROXY={px}", "-e", f"https_proxy={px}"]
-        cmd = ["docker", "run", "--rm", "--name", name, *net_args, "--read-only", "--tmpfs", "/tmp",
+        agent_cmd = ["python", "-c", _SECRET_LOADER, *agent[1:]] if secrets else agent
+        cmd = ["docker", "run", "--rm", *(["-i"] if secrets else []), "--name", name, *net_args, "--read-only", "--tmpfs", "/tmp",
                "--memory", "512m", "--cpus", "1", "--pids-limit", "256", "--cap-drop", "ALL",
-               "--security-opt", "no-new-privileges", *env_args, *mounts, DOCKER_IMAGE, *agent]
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL,
+               "--security-opt", "no-new-privileges", *env_args, *mounts, DOCKER_IMAGE, *agent_cmd]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                stdin=subprocess.PIPE if secrets else subprocess.DEVNULL,
                                 text=True, encoding="utf-8", errors="replace")
         timed_out = False
         try:
-            out, err = proc.communicate(timeout=timeout)
+            out, err = proc.communicate(input=(json.dumps(secrets) + "\n") if secrets else None, timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
             subprocess.run(["docker", "kill", name], capture_output=True)

@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from mcp_chaos.adapters.target import TargetError, resolve_target
+from mcp_chaos.adapters.target import TargetError, resolve_restricted
 from mcp_chaos.campaigns.registry import all_campaigns, resolve
 from mcp_chaos.core.assessment import Assessment, run_assessment
 from mcp_chaos.policies import policy as pol
@@ -45,7 +45,7 @@ def build() -> FastMCP:
         runs = max(1, min(runs, 10))
         timeout = max(5, min(timeout, 600))
         try:
-            resolve_target(target)
+            resolve_restricted(target)
             camps = resolve(mode)
         except (TargetError, KeyError) as exc:
             return {"error": str(exc)}

@@ -228,8 +228,12 @@ def approvals_list(root: Path) -> None:
 def approvals_approve(request_id: str, root: Path) -> None:
     from mcp_chaos.guard.approvals import decide
 
-    if not decide(root, request_id, "approve"):
-        _fail("no such pending request")
+    try:
+        ok = decide(root, request_id, "approve")
+    except ValueError as exc:
+        _fail(str(exc))
+    if not ok:
+        _fail("no such pending request (it may have expired)")
     console.print("approved (single use)")
 
 
@@ -239,8 +243,12 @@ def approvals_approve(request_id: str, root: Path) -> None:
 def approvals_deny(request_id: str, root: Path) -> None:
     from mcp_chaos.guard.approvals import decide
 
-    if not decide(root, request_id, "deny"):
-        _fail("no such pending request")
+    try:
+        ok = decide(root, request_id, "deny")
+    except ValueError as exc:
+        _fail(str(exc))
+    if not ok:
+        _fail("no such pending request (it may have expired)")
     console.print("denied")
 
 

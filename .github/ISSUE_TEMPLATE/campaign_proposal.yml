@@ -1,0 +1,46 @@
+name: Campaign proposal
+description: Propose a new attack campaign
+labels: ["campaign"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A campaign stays open only if it clears the bar in [SCOPE.md](https://github.com/dhruvpatel848/mcp-chaos/blob/main/SCOPE.md). Payloads must be synthetic and generic: no real credentials, nothing tuned against a named product.
+  - type: textarea
+    id: threat
+    attributes:
+      label: Threat model
+      description: Who attacks what, through which channel, to what end?
+    validations:
+      required: true
+  - type: textarea
+    id: payload
+    attributes:
+      label: Synthetic payload and where it is planted
+    validations:
+      required: true
+  - type: textarea
+    id: detection
+    attributes:
+      label: Detection rule (what in the trace is evidence?)
+      description: Which tool calls or tags prove the agent failed? Not "the model said something".
+    validations:
+      required: true
+  - type: textarea
+    id: outcomes
+    attributes:
+      label: Pass, fail and suspicious criteria, and how a vulnerable and a resisting agent differ
+    validations:
+      required: true
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Remediation guidance a developer should get on failure
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: It only touches simulated, disposable resources.
+          required: true
+        - label: I am willing to implement it (or want help implementing it).

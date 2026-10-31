@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work, or a verdict/policy is wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security problem?** (sandbox escape, guard bypass, approval bypass, leaked secret) Do **not** file it here.
+        Report it privately: https://github.com/dhruvpatel848/mcp-chaos/security/advisories/new
+        One problem per issue. Repro first, analysis after. Never paste API keys, tokens or `.env` contents.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact command(s) you ran, smallest first.
+      placeholder: "mcp-chaos attack --target demo:secure --mode data-exfil --out runs/x"
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: dropdown
+    id: sandbox
+    attributes:
+      label: Sandbox mode
+      options: ["process (default)", "docker", "docker + --allow-egress", "not applicable"]
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: "OS, Python version, mcp-chaos commit or version, Docker version if relevant"
+      placeholder: "Windows 11, Python 3.10, commit 1a2b3c4, Docker 28.3.2"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of `mcp-chaos doctor` and relevant logs
+      render: shell

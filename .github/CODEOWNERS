@@ -1,0 +1,15 @@
+# Auto-requests reviewers by path. Last matching pattern wins.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+*                                   @dhruvpatel848
+
+# Security-sensitive code: always reviewed as such
+/src/mcp_chaos/mocks/               @dhruvpatel848
+/src/mcp_chaos/guard/               @dhruvpatel848
+/src/mcp_chaos/sandbox/             @dhruvpatel848
+/src/mcp_chaos/adapters/            @dhruvpatel848
+/src/mcp_chaos/policies/            @dhruvpatel848
+/tests/security/                    @dhruvpatel848
+/SECURITY.md                        @dhruvpatel848
+/.github/                           @dhruvpatel848

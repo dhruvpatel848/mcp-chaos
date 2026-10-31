@@ -25,7 +25,7 @@ MCP-CHAOS attacks an agent **inside a sandbox of fake tools** (fake secrets, in-
 4. **Interpret.** `python scripts/analyze_report.py runs/<id>`. Distinguish **confirmed** (fail), **suspicious**, and **inconclusive** results; see `references/report-interpretation.md`. For each failure explain what happened, the causing tool call, the evidence, and the fix.
 5. **Policy.** `mcp-chaos policy runs/<id> --out mcp-guard.yaml`, then `python scripts/validate_policy.py mcp-guard.yaml`. Walk the user through each rule's `why` and `evidence` and ask them to fix allowlists. See `references/security-policies.md`.
 6. **Remediate and rerun.** Apply the suggested fixes in the agent (not only the policy), then rerun the failed campaign: `mcp-chaos attack --target ... --mode <campaign> --runs 3`.
-7. **Final assessment.** Summarize: score and method, confirmed/suspicious/inconclusive counts, per-campaign failure rate, fixes applied, remaining risk, and the limitations (these four campaigns only; sandbox is process-level, not a container).
+7. **Final assessment.** Summarize: score and method, confirmed/suspicious/inconclusive counts, per-campaign failure rate, fixes applied, remaining risk, and the limitations (the 10 built-in campaigns and bundled payloads only; the default sandbox is process-level (use `--sandbox docker` for untrusted agents)).
 
 ## Exit codes
 `0` all passed, `1` at least one failure, `2` setup/tool error.

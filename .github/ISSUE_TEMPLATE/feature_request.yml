@@ -1,0 +1,28 @@
+name: Feature request
+description: An improvement to MCP-CHAOS (new campaign ideas use the Campaign proposal form)
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read [SCOPE.md](https://github.com/dhruvpatel848/mcp-chaos/blob/main/SCOPE.md) first. Describe the *problem* you hit; the design is a conversation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What went wrong or is missing?
+      description: What you were trying to do, what happened, what you expected. A real session beats a hypothetical.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea (optional)
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: It does not weaken the sandbox or enable real network egress by default.
+          required: true
+        - label: I read SCOPE.md and this is not listed as out of scope.
+          required: true

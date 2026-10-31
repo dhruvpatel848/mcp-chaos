@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/dhruvpatel848/mcp-chaos/security/advisories/new
+    about: Sandbox escapes, guard or approval bypasses, leaked secrets. Please do not file these as public issues.
+  - name: Read the scope and contribution guide
+    url: https://github.com/dhruvpatel848/mcp-chaos/blob/main/CONTRIBUTING.md
+    about: Where each kind of request goes, and what makes a good pull request.
